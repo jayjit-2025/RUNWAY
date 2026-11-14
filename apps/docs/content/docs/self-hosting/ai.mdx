@@ -1,0 +1,75 @@
+---
+title: AI providers
+description: Configure OpenRouter or a compatible gateway for text and captions, and fal for images.
+icon: Sparkles
+---
+
+Add an OpenRouter key to enable AI post generation and automatic image captions. Writing, scheduling, and publishing work without it.
+
+## Add a key
+
+1. Create an API key in [OpenRouter](https://openrouter.ai/settings/keys). Check the account's billing and model access before inviting others to use generation.
+2. Add the key to the `.env` file used by your RUNWAY container. Choose model IDs available to that key:
+
+```dotenv
+OPENPOST_AI_API_KEY=your-openrouter-key
+OPENPOST_TEXT_GENERATION_MODEL=openai/gpt-6-luna
+OPENPOST_WORKFLOW_DECISION_MODEL=typesafe/jev-1.13
+OPENPOST_IMAGE_CAPTION_MODEL=openai/gpt-6-luna
+```
+
+Run `docker compose up -d --force-recreate openpost` to recreate the container with the new environment.
+
+The text model builds post copy from an idea. The image caption model writes suggested alt text. The shown IDs match this release's defaults; confirm that [OpenRouter still offers](https://openrouter.ai/models) them before relying on the example.
+
+You can leave the model values unset to use RUNWAY's defaults. `OPENPOST_CONTENT_AI_PROVIDER` optionally selects an exact OpenRouter provider for text and meme generation. `OPENPOST_CONTENT_AI_REQUIRE_ZDR=true` restricts those requests to zero-retention endpoints. Use it only after checking that the selected model and provider support that policy. OpenRouter [documents its per-request zero-retention behavior](https://openrouter.ai/docs/guides/features/zdr). Image captions have separate `OPENPOST_IMAGE_CAPTION_PROVIDER` and `OPENPOST_IMAGE_CAPTION_REQUIRE_ZDR` settings when you need different routing.
+
+Keep the key in your server secret store. Use `OPENPOST_AI_API_KEY_FILE` for a mounted secret file. Do not include it in posts, prompts, or logs.
+
+## Use your own AI gateway
+
+For a self-hosted instance, set `OPENPOST_AI_BASE_URL` to your gateway's OpenAI-compatible API base, including its path prefix. RUNWAY appends `/chat/completions`, so use a base such as `https://gateway.example/v1`, not the full completion URL.
+
+```dotenv
+OPENPOST_AI_BASE_URL=https://gateway.example/v1
+OPENPOST_AI_API_KEY=your-gateway-key
+OPENPOST_TEXT_GENERATION_MODEL=your-text-model
+OPENPOST_IMAGE_CAPTION_MODEL=your-vision-model
+OPENPOST_MEME_GENERATION_MODEL=your-text-model
+OPENPOST_WORKFLOW_DECISION_MODEL=your-decision-model
+```
+
+`OPENPOST_AI_API_KEY` authenticates both OpenRouter and gateway requests. Use `OPENPOST_AI_API_KEY_FILE` for a mounted secret. The legacy names `OPENROUTER_API_KEY` and `OPENROUTER_API_KEY_FILE` remain supported as fallbacks. The new name or its mounted secret takes precedence.
+
+Set the models to IDs your gateway serves. Image captions need image input support; post building, meme suggestions and workflow decisions need structured JSON output support. A provider's native API must be exposed through an OpenAI-compatible endpoint to work here.
+
+Custom endpoints receive no OpenRouter `provider` preferences, `HTTP-Referer` or `X-Title` headers. OpenRouter provider pins and ZDR settings have no effect in this mode. Configure routing, retention and privacy at your gateway. OpenRouter web search is unavailable with a custom endpoint.
+
+Recreate the container with `docker compose up -d --force-recreate openpost`, then follow the checks below. Apply the same environment to separate web and worker roles. Clear `OPENPOST_AI_BASE_URL` to return to OpenRouter. Hosted keeps its existing OpenRouter routing. Image generation through fal is independent of this setting.
+
+## Check the setup
+
+1. Open a new post and ask the AI builder to turn a short idea into a draft. Review the generated copy before saving or publishing.
+2. Add an image with no existing alt text to the composer and generate a caption. Review it before publishing. Existing alt text is kept.
+
+Post generation sends the idea and selected context to the configured model through the configured AI endpoint. Automatic alt text sends a 400 px JPEG thumbnail and up to 1,000 characters of relevant post text, rather than the original image. Background removal, video editing, and local transcription run in the browser and do not require this key.
+
+If a request fails, check the container logs and your provider or gateway for authentication, model access and balance errors. For OpenRouter, also check the provider slug and zero-retention setting. A text-only model may not be suitable for image captions.
+
+With the default endpoint, workflow AI decisions use Jev through OpenRouter's Decisions API. They route through TypeSafe and retain the content AI zero-data-retention requirement. With a custom endpoint, decisions use chat completions with structured probability output and `OPENPOST_WORKFLOW_DECISION_MODEL`. Existing saved model settings take precedence over environment defaults.
+
+## Image generation with fal
+
+Add a server-side [fal API key](https://fal.ai/dashboard/keys) with access to model inference and billing events:
+
+```dotenv
+FAL_KEY=your-fal-key
+```
+
+You can also set the **fal API key** in instance Settings, or use `FAL_KEY_FILE` for a mounted secret. Restart the server and worker after changing the key. Keep it out of browser code.
+
+The Visual Studio uses [GPT Image 2.5 Flare](https://fal.ai/models/openai/gpt-image-2.5/flare/text-to-image/api) by default. Users can select Sunburst in the panel. The [edit endpoint](https://fal.ai/models/openai/gpt-image-2.5/flare/edit/api) handles selected image edits and masked fills. These requests use fal independently of the OpenRouter key and routing settings above.
+
+Sign in, open an editable project saved to RUNWAY and choose **AI images**. Follow [Generate and edit images with AI](/image-editor/ai-images) to submit and review a result. This check makes a paid provider request.
+
+The web and worker roles need the same key. Requests and provider receipts are saved in the database, so restarting a worker does not regenerate an accepted image. RUNWAY records the request's cost in the existing AI usage ledger using [fal billing events](https://fal.ai/docs/platform-apis/v1/models/billing-events). Missing billing access leaves costs pending and eventually unavailable; it never records a missing charge as zero. No image-specific spending limits are enforced by RUNWAY.

@@ -1,0 +1,33 @@
+package main
+
+import (
+	"strings"
+	"time"
+
+	"github.com/openpost/backend/internal/ai"
+	"github.com/openpost/backend/internal/config"
+)
+
+const (
+	contentAIRequestTimeout = 150 * time.Second
+	contentAIMaxRetries     = 12
+)
+
+func openRouterConfigs(cfg *config.Config) (ai.OpenRouterConfig, ai.OpenRouterConfig) {
+	base := ai.OpenRouterConfig{
+		APIKey:             cfg.AIAPIKey,
+		BaseURL:            cfg.AIBaseURL,
+		CompatibleEndpoint: strings.TrimSpace(cfg.AIBaseURL) != "",
+		HTTPReferer:        cfg.PublicURL,
+		XTitle:             "RUNWAY",
+	}
+	imageConfig := base
+	imageConfig.Provider = cfg.ImageCaptionProvider
+	imageConfig.RequireZDR = cfg.ImageCaptionRequireZDR
+	contentConfig := base
+	contentConfig.Timeout = contentAIRequestTimeout
+	contentConfig.MaxRetries = contentAIMaxRetries
+	contentConfig.Provider = cfg.ContentAIProvider
+	contentConfig.RequireZDR = cfg.ContentAIRequireZDR
+	return imageConfig, contentConfig
+}
