@@ -1,8 +1,8 @@
 <p align="center">
   <a href="https://github.com/jayjit-2025/RUNWAY">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="./assets/brand/lockup-dark.svg">
-      <img src="./assets/brand/lockup.svg" alt="RUNWAY" width="240" height="60">
+      <source media="(prefers-color-scheme: dark)" srcset="./assets/brand/runway-dark.png">
+      <img src="./assets/brand/runway-light.png" alt="RUNWAY" width="360" height="90">
     </picture>
   </a>
 </p>
